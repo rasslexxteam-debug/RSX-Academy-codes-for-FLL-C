@@ -198,11 +198,11 @@ def turn_gyro(hdg, Brake=True):
         Drive_base.stop()
 
 from pybricks.hubs import PrimeHub
-from pybricks.pupdevices import Motor, ColorSensor
-from pybricks.parameters import Button, Color, Direction, Port, Side, Stop
-from pybricks.tools import wait, StopWatch, multitask, run_task
+from pybricks.parameters import Button, Port, Side, Stop, Direction
+from pybricks.tools import wait, run_task, StopWatch
+from pybricks.pupdevices import Motor
 from pybricks.robotics import DriveBase
-from umath import pi
+from math import sqrt
 
 global hub, motor_B, motor_F, motor_E, motor_A, Drive_base,Chassis_sensor
 hub = PrimeHub()
