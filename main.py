@@ -19,47 +19,108 @@ def lqr_gains(Q, R, b, kd=0.08):
     K2 = kd          
     return K1, K2
 
-def gyro_track_lqr(Q_angle, Q_rate, R, Deg1, Deg2, GyroDeg,
-                   Lowpower, Bigpower, Lowpower2, Deg, Brake=True):
-    K1, K2 = lqr_gains(Q_angle, R, b=2, kd=0.08)
-    motor_B.reset_angle(0)
-    motor_F.reset_angle(0)
+
+def turn_lqr(GyroDeg, Q=1, R=0.01, b=2, kd=0.08,
+                  Maxpower=80, Minpower=12,
+                  Tolerance=1.0, Settle=150, Timeout=3000, Brake=True):
+ 
+    K1 = sqrt(Q / R) / b
+    K2 = kd
+
     timer = StopWatch()
+    total = StopWatch()
     last_time = timer.time()
     last_error = GyroDeg - Gyro()
     error_rate = 0
-    MotorDeg = 0
-    while MotorDeg <= Deg:
-        MotorDeg = (abs(motor_B.angle()) + abs(motor_F.angle())) / 2
-        if MotorDeg > Deg1 and MotorDeg < Deg - Deg2:
-            power = Bigpower
-        else:
-            if MotorDeg < Deg / 2:
-                inMin, inMax = 0, Deg1
-                outMin, outMax = Lowpower, Bigpower
-            else:
-                inMin, inMax = Deg - Deg2, Deg
-                outMin, outMax = Bigpower, Lowpower2
-            power = map_value(MotorDeg, inMin, inMax, outMin, outMax)
+    settled = 0
+
+    while total.time() < Timeout:
         now = timer.time()
-        dt = (now - last_time) / 1000       
+        dt = (now - last_time) / 1000
         error = GyroDeg - Gyro()
         if dt > 0:
             raw_rate = (error - last_error) / dt
-            error_rate = 0.7 * error_rate + 0.3 * raw_rate      
-        correction = K1 * error + K2 * error_rate
-        correction = max(-40, min(40, correction))
-        left = max(-100, min(100, power + correction))
-        right = max(-100, min(100, power - correction))
-        motor_B.dc(left)
-        motor_F.dc(right)
+            error_rate = 0.7 * error_rate + 0.3 * raw_rate
+
+        u = K1 * error + K2 * error_rate
+
+        
+        u = max(-Maxpower, min(Maxpower, u))
+        if abs(error) > Tolerance and abs(u) < Minpower:
+            u = Minpower if u >= 0 else -Minpower   
+
+    
+        if abs(error) <= Tolerance and abs(error_rate) < 15:
+            settled += now - last_time
+            u = 0
+            if settled >= Settle:
+                break
+        else:
+            settled = 0
+
+        motor_B.dc(u)
+        motor_F.dc(-u)
+
         last_error = error
         last_time = now
         wait(10)
 
     if Brake:
         Drive_base.stop()
+    else:
+        motor_B.dc(0)
+        motor_F.dc(0)
 
+turn with one wheel:
+
+def turnl_lqr(GyroDeg, Q=1.5, R=0.01, b=2, kd=0.11,
+              Maxpower=75, Minpower=15,
+              Tolerance=1.5, Settle=150, Timeout=3000, Brake=True):
+ 
+    K1 = sqrt(Q / R) / b
+    K2 = kd
+ 
+    timer = StopWatch()
+    total = StopWatch()
+    last_time = timer.time()
+    last_error = angle_error(GyroDeg, Gyro())
+    error_rate = 0
+    settled = 0
+ 
+    while total.time() < Timeout:
+        now = timer.time()
+        dt = (now - last_time) / 1000
+        error = angle_error(GyroDeg, Gyro())
+ 
+        if dt > 0:
+            raw_rate = (error - last_error) / dt
+            error_rate = 0.7 * error_rate + 0.3 * raw_rate
+ 
+        u = K1 * error + K2 * error_rate
+ 
+        u = max(-Maxpower, min(Maxpower, u))
+        if abs(error) > Tolerance and abs(u) < Minpower:
+            u = Minpower if u >= 0 else -Minpower
+ 
+        if abs(error) <= Tolerance and abs(error_rate) < 15:
+            settled += now - last_time
+            u = 0
+            if settled >= Settle:
+                break
+        else:
+            settled = 0
+ 
+        motor_F.dc(SIGN * (-u))
+ 
+        last_error = error
+        last_time = now
+        wait(10)
+ 
+    if Brake:
+        motor_F.brake()
+        Drive_base.stop()
+    else:
+        motor_F.dc(0)
 
 def turn_lqr(GyroDeg, Q=1, R=0.01, b=2, kd=0.08,
                   Maxpower=80, Minpower=12,
