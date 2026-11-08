@@ -19,6 +19,53 @@ def lqr_gains(Q, R, b, kd=0.08):
     K2 = kd          
     return K1, K2
 
+def gyro_track(Kp, Kd, Deg1, Deg2, GyroDeg, Lowpower, Bigpower, Lowpower2, Deg,Brake=True):
+    motor_B.reset_angle(0)
+    motor_F.reset_angle(0)
+    Last_error = 0
+    MotorDeg = 0
+    while MotorDeg <= Deg:
+        MotorDeg = (abs(motor_B.angle()) + abs(motor_F.angle())) / 2
+        if MotorDeg > Deg1 and MotorDeg < Deg-Deg2:
+            power = Bigpower
+        else:
+            if MotorDeg < Deg / 2:
+                inMin = 0
+                inMax = Deg1
+                outMin = Lowpower
+                outMax = Bigpower
+            else:
+                inMin = Deg - Deg2
+                inMax = Deg
+                outMin = Bigpower
+                outMax = Lowpower2
+            power = map_value(MotorDeg, inMin, inMax, outMin, outMax)
+        error = GyroDeg - Gyro()
+        derivative = error - Last_error
+        correction = (Kp * error) + (Kd * derivative)
+        motor_B.dc(power + correction)
+        motor_F.dc(power - correction)
+        Last_error = error
+        wait(10)
+    if Brake:
+        Drive_base.stop()
+
+
+def move_deg(Power_B, Power_F, Deg, Brake=True):
+    motor_B.reset_angle(0)
+    motor_F.reset_angle(0)
+
+    while (abs(motor_B.angle()) + abs(motor_F.angle())) / 2 < Deg:
+        motor_B.dc(Power_B)
+        motor_F.dc(Power_F)
+        wait(10)   
+
+    motor_B.dc(0)
+    motor_F.dc(0)
+
+    if Brake:
+        motor_B.brake()
+        motor_F.brake()
 
 def turn_lqr(GyroDeg, Q=1, R=0.01, b=2, kd=0.08,
                   Maxpower=80, Minpower=12,
